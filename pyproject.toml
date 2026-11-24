@@ -1,0 +1,14 @@
+[project]
+name = "fastapi-stripe-webhooks"
+version = "1.0.0"
+description = "Production-grade Stripe webhook handling in FastAPI"
+requires-python = ">=3.12"
+license = "MIT"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
