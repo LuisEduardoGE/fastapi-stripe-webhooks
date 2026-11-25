@@ -69,7 +69,7 @@ unknown attributes through `__getattr__`, which looks the name up as a key: `obj
 `"get"` key in a checkout session, so the `KeyError` is re-raised as `AttributeError("get")`, and `str()` of that
 exception is the bare word `get`. My alert printed `str(exc)`. That's the whole message.
 
-![Five steps in stripe-python 15.0: obj.get("customer") goes to StripeObject.__getattr__("get"), which looks up obj["get"]; the missing key becomes AttributeError("get"), and the alert prints str(exc): Stripe webhook failed: Error: get. From 16.0 the error reads: 'get' is a dict method, but a Session is not a dict. Use .to_dict() to convert it](why-get.png)
+![Five steps in stripe-python 15.0: obj.get("customer") goes to StripeObject.__getattr__("get"), which looks up the key "get"; the missing key becomes AttributeError("get"), and the alert prints str(exc): Stripe webhook failed: Error: get. From 16.0 the error reads: 'get' is a dict method, but a Session is not a dict. Use .to_dict() to convert it](why-get.png)
 
 Here is the trap in a few lines you can run:
 
