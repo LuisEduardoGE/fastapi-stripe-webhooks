@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>My first paying customer stayed on Free</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0b0a18; }
+  body { font-family: 'Segoe UI', 'Inter', Arial, sans-serif; color: #f4f2ff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .s { width: 1280px; height: 720px; position: relative; overflow: hidden; page-break-after: always; break-after: page;
+       background: radial-gradient(120% 140% at 85% 10%, #2a1f5c 0%, #12102a 45%, #0b0a18 100%); padding: 64px 80px; }
+  .s:last-child { page-break-after: auto; break-after: auto; }
+  .s::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(#ffffff08 1px, transparent 1px), linear-gradient(90deg, #ffffff08 1px, transparent 1px); background-size: 32px 32px; pointer-events: none; }
+  .s > * { position: relative; }
+  .kicker { font-size: 20px; font-weight: 700; color: #a99cff; }
+  h1 { font-size: 64px; line-height: 1.06; margin: 18px 0 0; font-weight: 800; letter-spacing: -0.01em; }
+  h2 { font-size: 44px; line-height: 1.12; margin: 0 0 28px; font-weight: 800; }
+  p, li { font-size: 26px; line-height: 1.45; color: #d6d2f0; }
+  ul, ol { margin: 0; padding-left: 34px; } li { margin: 0 0 12px; }
+  code, .mono { font-family: 'Cascadia Code', Consolas, monospace; }
+  code { color: #c7b8ff; font-size: .92em; }
+  .red { color: #ff8c7a; } .green { color: #8fe3b0; } .muted { color: #8e88b8; }
+  .fig { display: block; margin: 0 auto; max-width: 100%; max-height: 520px; border-radius: 12px; box-shadow: 0 24px 60px #00000080; }
+  .fig.code { max-height: 470px; }
+  .center { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+  .big { font-family: 'Cascadia Code', Consolas, monospace; font-size: 44px; color: #ff8c7a; white-space: nowrap; background: #0d0c1c; border: 1px solid #3b3566; border-radius: 14px; padding: 34px 40px; margin: 28px 0; }
+  .foot { position: absolute; left: 80px; right: 80px; bottom: 34px; display: flex; justify-content: space-between; font-size: 16px; color: #8e88b8; }
+  .row { display: flex; gap: 40px; align-items: center; }
+  .row > div { flex: 1; }
+  .ver { display: grid; grid-template-columns: 210px 1fr; gap: 18px 28px; font-size: 26px; line-height: 1.4; }
+  .ver b { font-family: 'Cascadia Code', Consolas, monospace; color: #c7b8ff; font-weight: 600; }
+  .links p { font-size: 24px; margin: 6px 0; }
+</style></head>
+<body>
+
+<section class="s">
+  <div class="center">
+    <div class="kicker">A Stripe webhook post-mortem</div>
+    <h1>My first paying customer<br>stayed on <span class="red">Free</span></h1>
+    <p style="margin-top:26px">The tests passed. Production crashed. The error said one word.</p>
+    <p class="muted" style="font-size:22px;margin-top:40px">Luis Eduardo G. Espindola · full-stack developer, Belgium</p>
+  </div>
+</section>
+
+<section class="s">
+  <div class="center">
+    <h2>The admin alert had one word in it</h2>
+    <div class="big">Stripe webhook failed: Error: get</div>
+    <p>No stack trace, no field name. Just <code>get</code>.</p>
+  </div>
+</section>
+
+<section class="s">
+  <h2>What the customer saw</h2>
+  <img class="fig" src="../incident.png" alt="Timeline: paid for Pro, webhook failed with Error: get, plan stayed Free; then the fix and the replay from Stripe">
+</section>
+
+<section class="s">
+  <h2>The handler that passed every test</h2>
+  <img class="fig code" src="../code/code-2.png" alt="The FastAPI webhook handler calling obj.get on the Stripe object">
+</section>
+
+<section class="s">
+  <h2>…because the tests built events from dicts</h2>
+  <img class="fig code" src="../code/code-3.png" alt="A test helper that builds the event as a plain dict">
+  <p style="margin-top:34px">Plain dicts have <code>.get()</code>. Production doesn't hand you a plain dict.</p>
+</section>
+
+<section class="s">
+  <h2>StripeObject stopped being a dict</h2>
+  <div class="ver">
+    <b>14.0.0</b><span>a <code>dict</code> subclass: <code>obj.get("status")</code> <span class="green">works</span></span>
+    <b>15.0.0</b><span>not a <code>dict</code>: <code>obj.get("status")</code> raises <span class="red">AttributeError: get</span></span>
+    <b>16.0 / 17.1</b><span>still not a <code>dict</code>, but the error explains itself:<br><span class="muted" style="font-size:22px">'get' is a dict method, but a Subscription is not a dict. Use .to_dict()</span></span>
+  </div>
+</section>
+
+<section class="s">
+  <h2>Why the message is one word</h2>
+  <img class="fig" src="../why-get.png" alt="obj.get goes through __getattr__, becomes a key lookup, the KeyError becomes AttributeError('get'), and str(exc) is get">
+</section>
+
+<section class="s">
+  <h2>The trap, in lines you can run</h2>
+  <img class="fig code" src="../code/code-4.png" alt="A real stripe.Event: item and attribute access work, obj.get raises AttributeError">
+</section>
+
+<section class="s">
+  <h2>The second trap: <code>getattr</code> on a dict</h2>
+  <img class="fig" src="../two-worlds.png" alt="In tests getattr on a dict silently returns the default; in production .get raises. to_dict at the edge makes both the same">
+</section>
+
+<section class="s">
+  <h2>The fix: one shape, chosen at the edge</h2>
+  <img class="fig code" src="../code/code-6.png" alt="to_plain converts a StripeObject with to_dict once, at the webhook edge">
+</section>
+
+<section class="s">
+  <h2>The test that would have caught it</h2>
+  <img class="fig code" src="../code/code-7.png" alt="A test that builds a real stripe.Event with construct_from and checks the customer ends up on the paid plan">
+</section>
+
+<section class="s">
+  <div class="center">
+    <h2>Fixing the customer, not just the code</h2>
+    <p>The failed webhook never stored their subscription ID, and "sync my plan" needed exactly that ID.</p>
+    <p>I replayed their state from Stripe by hand.</p>
+    <p style="margin-top:26px" class="green">Check that your recovery path doesn't depend on data the failed webhook was supposed to write.</p>
+  </div>
+</section>
+
+<section class="s">
+  <h2>What I do with Stripe webhooks now</h2>
+  <div class="row">
+    <div>
+      <ol>
+        <li><b>Normalize at the edge</b>: <code>to_dict()</code> once</li>
+        <li><b>Test with the real class</b>: <code>construct_from</code></li>
+        <li><b>Verify the raw body</b></li>
+        <li><b>Store before you acknowledge</b>: inbox by <code>event.id</code></li>
+        <li><b>Answer fast, work later</b></li>
+        <li><b>Log the exception type</b>, not just <code>str(exc)</code></li>
+      </ol>
+    </div>
+    <div><img class="fig" style="max-height:440px" src="../pipeline.png" alt="Webhook path: raw body, signature check, to_plain, events inbox, 200, background processing"></div>
+  </div>
+</section>
+
+<section class="s">
+  <div class="center links">
+    <h2>One method call. The first customer's first impression.</h2>
+    <p>Every Stripe test I write now starts from a real <code>stripe.Event</code>.</p>
+    <p style="margin-top:34px" class="mono">github.com/LuisEduardoGE/fastapi-stripe-webhooks</p>
+    <p class="muted">25 tests, no Stripe keys needed</p>
+    <p style="margin-top:34px">Luis Eduardo G. Espindola</p>
+    <p class="muted mono" style="font-size:20px">dev.to/luiseduardoge · luiseduardoge.hashnode.dev · linkedin.com/in/luisgespindola</p>
+  </div>
+</section>
+
+</body></html>
