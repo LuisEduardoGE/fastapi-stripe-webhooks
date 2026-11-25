@@ -18,6 +18,8 @@ It was 24 June 2026, and that alert belonged to the first real paying customer o
 a home-search subscription product I lead. They had paid for Pro. Stripe had taken the money. Our database still had
 them on Free, which meant no Pro alerts, which meant the one thing they had just paid for wasn't happening.
 
+![Timeline: the customer pays for Pro; Stripe sends checkout.session.completed; the handler's obj.get() raises AttributeError and the alert says Error: get; the plan stays Free because no subscription ID was stored. Then the fix, to_dict() at the edge with tests built from a real stripe.Event, and the subscription replayed from Stripe](incident.png)
+
 The tests were green. They had been green the whole time. This is the story of why, and of the five lines that fixed it.
 
 ## The handler that passed every test
@@ -66,6 +68,8 @@ Newer versions explain themselves. 15.0 doesn't, and that's where the one-word a
 unknown attributes through `__getattr__`, which looks the name up as a key: `obj.get` becomes `obj["get"]`. There is no
 `"get"` key in a checkout session, so the `KeyError` is re-raised as `AttributeError("get")`, and `str()` of that
 exception is the bare word `get`. My alert printed `str(exc)`. That's the whole message.
+
+![Five steps in stripe-python 15.0: obj.get("customer") goes to StripeObject.__getattr__("get"), which looks up obj["get"]; the missing key becomes AttributeError("get"), and the alert prints str(exc): Stripe webhook failed: Error: get. From 16.0 the error reads: 'get' is a dict method, but a Session is not a dict. Use .to_dict() to convert it](why-get.png)
 
 Here is the trap in a few lines you can run:
 
@@ -180,6 +184,8 @@ I rebuilt the whole pattern as a small public demo, [fastapi-stripe-webhooks](ht
    leaves a `failed` row you can re-run instead of a lost event.
 5. **Answer fast, work later.** Return `200` once the event is stored; do the work in a background job.
 6. **Log the exception type, not just `str(exc)`.** `AttributeError: get` says far more than `get`.
+
+![Webhook path: Stripe sends the event to POST /webhooks/stripe, which reads the raw body, verifies the signature with construct_event(), converts it with to_plain(), stores it in an events inbox keyed by event.id and answers 200. In the background, process_event() runs derive_change() on plain dicts and updates the subscriptions table; failed rows are re-run by process_unfinished(). Tests build events with stripe.Event.construct_from()](pipeline.png)
 
 The bug was one method call. What it cost was the first impression of the first person who trusted us with money.
 Since then, every Stripe test I write starts from a real `stripe.Event`.
