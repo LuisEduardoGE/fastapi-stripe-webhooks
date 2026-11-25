@@ -28,7 +28,9 @@ The webhook looked like most Stripe webhooks you will find in tutorials, simplif
 @router.post("/webhooks/stripe")
 async def stripe_webhook(request: Request):
     event = stripe.Webhook.construct_event(
-        await request.body(), request.headers["stripe-signature"], settings.stripe_webhook_secret
+        await request.body(),
+        request.headers["stripe-signature"],
+        settings.stripe_webhook_secret,
     )
     obj = event["data"]["object"]
 
@@ -70,17 +72,19 @@ Here is the trap in a few lines you can run:
 ```python
 import stripe
 
+session = {"object": "checkout.session", "customer": "cus_123"}
 event = stripe.Event.construct_from(
-    {"id": "evt_1", "object": "event", "type": "checkout.session.completed",
-     "data": {"object": {"object": "checkout.session", "customer": "cus_123"}}},
+    {"id": "evt_1", "object": "event",
+     "type": "checkout.session.completed",
+     "data": {"object": session}},
     "sk_test_fake",
 )
 obj = event.data.object
 
-isinstance(obj, dict)   # False
-obj["customer"]         # 'cus_123'   item access still works
-obj.customer            # 'cus_123'   so does attribute access
-obj.get("customer")     # AttributeError: get   (stripe-python 15.0)
+isinstance(obj, dict)  # False
+obj["customer"]        # 'cus_123'  item access works
+obj.customer           # 'cus_123'  attribute access works
+obj.get("customer")    # AttributeError: get  (15.0)
 ```
 
 Item access works, attribute access works, and the one method every Python developer reaches for doesn't.
@@ -119,12 +123,12 @@ from stripe import StripeObject
 
 
 def to_plain(obj: StripeObject | Mapping[str, Any]) -> dict[str, Any]:
-    """Return a plain, recursively converted dict for a Stripe object or mapping."""
+    """Plain, recursively converted dict for a Stripe object."""
     if isinstance(obj, StripeObject):
         return obj.to_dict()  # recursive by default
     if isinstance(obj, Mapping):
         return dict(obj)
-    raise TypeError(f"expected a StripeObject or mapping, got {type(obj).__name__}")
+    raise TypeError(f"not a StripeObject: {type(obj).__name__}")
 ```
 
 `to_dict()` is public and recursive, so nested objects (line items, the invoice's subscription details) become plain
@@ -140,9 +144,10 @@ def _real_event(evt: dict) -> stripe.Event:
 
 
 def test_handler_works_on_a_real_stripe_event(tmp_path):
-    """Regression: a paid checkout must put the customer on the paid plan."""
+    """A paid checkout must put the customer on the paid plan."""
     store = Store(str(tmp_path / "t.db"))
-    real = _real_event(event("checkout.session.completed", checkout_session(payment_status="paid")))
+    paid = checkout_session(payment_status="paid")
+    real = _real_event(event("checkout.session.completed", paid))
 
     assert handle_event(store, real) == "created"
     [sub] = store.subscriptions_for("cus_123")
