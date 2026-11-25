@@ -12,3 +12,7 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+
+[tool.ruff.format]
+# Code blocks in the published articles are laid out by hand to match the article and its code images.
+exclude = ["articles/**"]
